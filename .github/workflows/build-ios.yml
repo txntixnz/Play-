@@ -1,0 +1,55 @@
+name: Build Unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install dependencies (CocoaPods, CMake, Ninja)
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja pkg-config
+          gem install cocoapods
+          pod install --project-directory=build_ios
+
+      # 3. Build the iOS app (Release, unsigned)
+      - name: Build iOS app
+        run: |
+          xcodebuild \
+            -workspace build_ios/Play.xcworkspace \
+            -scheme Play-iOS \
+            -sdk iphoneos \
+            -configuration Release \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER=""
+
+      # 4. Package unsigned IPA manually
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p output/Payload
+          cp -R build_ios/Release-iphoneos/Play.app output/Payload/
+          cd output
+          zip -r Play-unsigned.ipa Payload
+          cd ..
+          ls -lh output/
+
+      # 5. Upload IPA as artifact
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Play-Unsigned-IPA
+          path: output/Play-unsigned.ipa
